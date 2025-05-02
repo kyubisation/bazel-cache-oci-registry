@@ -34,19 +34,14 @@ func CreateHandler(cache OrasCache) http.Handler {
 			defer r.Body.Close()
 			w.WriteHeader(http.StatusNoContent)
 		} else if r.Method == "GET" || r.Method == "HEAD" {
-			exists := cache.Exists(key)
-			if !exists {
+			var buffer bytes.Buffer
+			err := cache.Restore(key, &buffer)
+			if err != nil {
 				w.WriteHeader(http.StatusNotFound)
 			} else {
-				var buffer bytes.Buffer
-				err := cache.Restore(key, &buffer)
-				if err != nil {
-					w.WriteHeader(http.StatusNotFound)
-				} else {
-					w.WriteHeader(http.StatusOK)
-					if r.Method == "GET" {
-						io.Copy(w, &buffer)
-					}
+				w.WriteHeader(http.StatusOK)
+				if r.Method == "GET" {
+					io.Copy(w, &buffer)
 				}
 			}
 		} else {

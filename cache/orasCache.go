@@ -24,22 +24,6 @@ func NewOras(
 	return OrasCache{context, repository}
 }
 
-func (c OrasCache) Exists(key string) bool {
-	if len(key) == 0 {
-		return false
-	}
-
-	_, r, err := c.repository.Manifests().FetchReference(c.context, key)
-	if err != nil {
-		return false
-	}
-	defer r.Close()
-
-	var packManifest v1.Manifest
-	err = json.NewDecoder(r).Decode(&packManifest)
-	return err == nil
-}
-
 func (c OrasCache) Store(key string, reader io.Reader) error {
 	if len(key) == 0 {
 		return fmt.Errorf("key must not be empty")
