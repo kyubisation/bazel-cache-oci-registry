@@ -31,6 +31,7 @@ jobs:
           docker push ${{ env.imageName }}
 
   test:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -44,11 +45,8 @@ jobs:
         ports:
           - 8080:8080
     steps:
+      - uses: actions/checkout@v4
       - run: |
-          echo "test" > test.txt
-          curl -X PUT --upload-file test.txt http://localhost:8080/cas/15e2b0d3c33891ebb0f1ef609ec419420c20e320ce94c65fbc8c3312448eb225
-          echo "------------------"
-          curl --output test-result.txt http://localhost:8080/cas/15e2b0d3c33891ebb0f1ef609ec419420c20e320ce94c65fbc8c3312448eb225
-          echo "------------------"
-          cat test-result.txt
-          echo "------------------"
+          cd test
+          ./upload.sh
+          ./download.sh
