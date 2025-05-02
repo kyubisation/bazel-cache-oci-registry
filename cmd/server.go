@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
+	"oras.land/oras-go/v2/registry/remote/credentials"
 	"oras.land/oras-go/v2/registry/remote/retry"
 )
 
@@ -50,7 +51,7 @@ func serve(cmd *cobra.Command, args []string) error {
 			authCredentials.Password = password
 		}
 		if len(token) != 0 {
-			authCredentials.RefreshToken = token
+			authCredentials.AccessToken = token
 		}
 	}
 
@@ -60,15 +61,26 @@ func serve(cmd *cobra.Command, args []string) error {
 	} else if strings.HasPrefix(repo.Reference.Registry, "127.0.0.1") || strings.HasPrefix(repo.Reference.Registry, "localhost") {
 		repo.PlainHTTP = true
 	}
+	ctx := cmd.Context()
 	if authCredentials != nil {
 		repo.Client = &auth.Client{
 			Client:     retry.DefaultClient,
 			Cache:      auth.NewCache(),
 			Credential: auth.StaticCredential(repo.Reference.Registry, *authCredentials),
 		}
+
+		// Test the authentication
+		registry, err := remote.NewRegistry(repo.Reference.Registry)
+		if err != nil {
+			return err
+		}
+		ctx = auth.AppendRepositoryScope(ctx, repo.Reference, auth.ActionPull, auth.ActionPush)
+		err = credentials.Login(ctx, credentials.NewMemoryStore(), registry, *authCredentials)
+		if err != nil {
+			return err
+		}
 	}
 
-	ctx := auth.AppendRepositoryScope(cmd.Context(), repo.Reference, auth.ActionPull, auth.ActionPush)
 	server := &http.Server{
 		Addr:    ":8080",
 		Handler: cache.CreateHandler(cache.NewOras(ctx, repo)),
