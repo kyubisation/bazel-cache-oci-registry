@@ -26,3 +26,5 @@ go.work.sum
 
 # Artifact
 bazel-cache-oci-registry
+
+__debug_bin*
