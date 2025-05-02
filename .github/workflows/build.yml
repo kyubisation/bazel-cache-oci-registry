@@ -30,13 +30,6 @@ jobs:
           docker buildx build --tag ${{ env.imageName }} .
           docker push ${{ env.imageName }}
 
-      - name: Assert cache repo
-        run: |
-          echo "FROM scratch" > Dockerfile.tmp
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $ --password-stdin
-          docker buildx build --file Dockerfile.tmp --tag ${{ env.imageName }}/bazel-cache .
-          docker push ${{ env.imageName }}/bazel-cache
-
   test:
     runs-on: ubuntu-latest
     permissions:
@@ -46,8 +39,7 @@ jobs:
       cache:
         image: ghcr.io/${{ github.repository }}
         env:
-          registry: ghcr.io
-          repository: kyubisation/bazel-cache-oci-registry/bazel-cache
+          repository: ghcr.io/${{ github.repository }}/bazel-cache
           token: ${{ secrets.GITHUB_TOKEN }}
         ports:
           - 8080:8080

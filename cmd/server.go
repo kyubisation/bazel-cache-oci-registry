@@ -4,12 +4,14 @@ import (
 	"bazel-cache-oci-registry/cache"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
+	"oras.land/oras-go/v2/registry/remote/retry"
 )
 
-var registry string
 var repository string
 var username string
 var password string
@@ -22,42 +24,54 @@ var serverCmd = &cobra.Command{
 	Long: `
 	
 bazel-cache-oci-registry server`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if len(registry) == 0 {
-			return fmt.Errorf("registry must be configured")
-		} else if len(repository) == 0 {
-			return fmt.Errorf("repository must be configured")
-		}
-
-		var credentials *auth.Credential
-		if len(username+password+token) != 0 {
-			credentials = &auth.Credential{}
-			if len(username) != 0 {
-				credentials.Username = username
-			}
-			if len(password) != 0 {
-				credentials.Password = password
-			}
-			if len(token) != 0 {
-				credentials.AccessToken = token
-			}
-		}
-
-		server := &http.Server{
-			Addr: ":8080",
-			Handler: cache.CreateHandler(
-				cache.NewOras(
-					cmd.Context(), registry, repository, credentials)),
-		}
-		return server.ListenAndServe()
-	},
+	RunE: serve,
 }
 
 func init() {
 	rootCmd.AddCommand(serverCmd)
-	serverCmd.Flags().StringVar(&registry, "registry", "", "Adress of the OCI registry")
-	serverCmd.Flags().StringVar(&repository, "repository", "", "Repository name to be used as a cache")
+	serverCmd.Flags().StringVar(&repository, "repository", "", "Fully qualified repository to be used as a cache")
 	serverCmd.Flags().StringVar(&username, "username", "", "Username for the OCI registry")
 	serverCmd.Flags().StringVar(&password, "password", "", "Password for the OCI registry")
 	serverCmd.Flags().StringVar(&token, "token", "", "Access token for the OCI registry")
+}
+
+func serve(cmd *cobra.Command, args []string) error {
+	if len(repository) == 0 {
+		return fmt.Errorf("repository must be configured")
+	}
+
+	var authCredentials *auth.Credential
+	if len(username+password+token) != 0 {
+		authCredentials = &auth.Credential{}
+		if len(username) != 0 {
+			authCredentials.Username = username
+		}
+		if len(password) != 0 {
+			authCredentials.Password = password
+		}
+		if len(token) != 0 {
+			authCredentials.RefreshToken = token
+		}
+	}
+
+	repo, err := remote.NewRepository(repository)
+	if err != nil {
+		return err
+	} else if strings.HasPrefix(repo.Reference.Registry, "127.0.0.1") || strings.HasPrefix(repo.Reference.Registry, "localhost") {
+		repo.PlainHTTP = true
+	}
+	if authCredentials != nil {
+		repo.Client = &auth.Client{
+			Client:     retry.DefaultClient,
+			Cache:      auth.NewCache(),
+			Credential: auth.StaticCredential(repo.Reference.Registry, *authCredentials),
+		}
+	}
+
+	ctx := auth.AppendRepositoryScope(cmd.Context(), repo.Reference, auth.ActionPull, auth.ActionPush)
+	server := &http.Server{
+		Addr:    ":8080",
+		Handler: cache.CreateHandler(cache.NewOras(ctx, repo)),
+	}
+	return server.ListenAndServe()
 }

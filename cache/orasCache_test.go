@@ -2,17 +2,19 @@ package cache
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"log"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/google/go-containerregistry/pkg/registry"
+	testregistry "github.com/google/go-containerregistry/pkg/registry"
+	"oras.land/oras-go/v2/registry/remote"
 )
 
 func TestStore(t *testing.T) {
-	cacheInstance := NewOras(t.Context(), setupInMemoryRegistry(t), "cache", nil)
+	cacheInstance := NewOras(t.Context(), setupInMemoryRepository(t))
 	key := "test-key"
 	expected := "my test value"
 	err := cacheInstance.Store(key, strings.NewReader(expected), CacheOptions{
@@ -24,7 +26,7 @@ func TestStore(t *testing.T) {
 }
 
 func TestRestore(t *testing.T) {
-	cacheInstance := NewOras(t.Context(), setupInMemoryRegistry(t), "cache", nil)
+	cacheInstance := NewOras(t.Context(), setupInMemoryRepository(t))
 	key := "test-key"
 	expected := "my test value"
 	err := cacheInstance.Store(key, strings.NewReader(expected), CacheOptions{
@@ -41,11 +43,17 @@ func TestRestore(t *testing.T) {
 	}
 }
 
-func setupInMemoryRegistry(t *testing.T) string {
-	registry := httptest.NewServer(
-		registry.New(
-			registry.WithBlobHandler(registry.NewInMemoryBlobHandler()),
-			registry.Logger(log.New(io.Discard, "", 0))))
-	t.Cleanup(registry.Close)
-	return strings.TrimPrefix(registry.URL, "http://")
+func setupInMemoryRepository(t *testing.T) *remote.Repository {
+	registryServer := httptest.NewServer(
+		testregistry.New(
+			testregistry.WithBlobHandler(testregistry.NewInMemoryBlobHandler()),
+			testregistry.Logger(log.New(io.Discard, "", 0))))
+	t.Cleanup(registryServer.Close)
+	repositoryUri := fmt.Sprintf("%s/cache", strings.TrimPrefix(registryServer.URL, "http://"))
+	repo, err := remote.NewRepository(repositoryUri)
+	if err != nil {
+		t.Fatalf("failed to create registry: %s", err.Error())
+	}
+	repo.PlainHTTP = true
+	return repo
 }
