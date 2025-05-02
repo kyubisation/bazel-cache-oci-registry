@@ -6,11 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"time"
 
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2"
-	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/content/memory"
 	"oras.land/oras-go/v2/registry/remote"
 )
@@ -19,8 +17,6 @@ type OrasCache struct {
 	context    context.Context
 	repository *remote.Repository
 }
-
-const lastUsedAnnotation = "bazel-cache-oci-registry.last-used"
 
 func NewOras(
 	context context.Context,
@@ -44,7 +40,7 @@ func (c OrasCache) Exists(key string) bool {
 	return err == nil
 }
 
-func (c OrasCache) Store(key string, reader io.Reader, options CacheOptions) error {
+func (c OrasCache) Store(key string, reader io.Reader) error {
 	if len(key) == 0 {
 		return fmt.Errorf("key must not be empty")
 	}
@@ -63,9 +59,12 @@ func (c OrasCache) Store(key string, reader io.Reader, options CacheOptions) err
 		return err
 	}
 
-	opts := createPackManifestOptions(options, fileDescriptor)
+	opts := oras.PackManifestOptions{
+		Layers:              []v1.Descriptor{fileDescriptor},
+		ManifestAnnotations: make(map[string]string),
+	}
 	manifestDescriptor, err := oras.PackManifest(
-		c.context, m, oras.PackManifestVersion1_1, options.ArtifactType, opts)
+		c.context, m, oras.PackManifestVersion1_1, "application/vnd.bazel.cache.http", opts)
 	if err != nil {
 		return err
 	}
@@ -88,7 +87,7 @@ func (c OrasCache) Restore(key string, writer io.Writer) error {
 		return fmt.Errorf("key must not be empty")
 	}
 
-	_, r, err := c.repository.Manifests().FetchReference(c.context, key)
+	_, r, err := c.repository.FetchReference(c.context, key)
 	if err != nil {
 		return err
 	}
@@ -96,26 +95,6 @@ func (c OrasCache) Restore(key string, writer io.Writer) error {
 
 	var packManifest v1.Manifest
 	err = json.NewDecoder(r).Decode(&packManifest)
-	if err != nil {
-		return err
-	}
-
-	if durationString, ok :=
-		packManifest.Annotations[lastUsedAnnotation]; ok {
-		duration, err := time.ParseDuration(durationString)
-		if err == nil {
-			packManifest.Annotations[lastUsedAnnotation] =
-				time.Now().Add(duration).Format("2006-01-02T15:04:05.000Z")
-		}
-	}
-
-	manifestBytes, err := json.Marshal(packManifest)
-	if err != nil {
-		return err
-	}
-
-	desc := content.NewDescriptorFromBytes(packManifest.MediaType, manifestBytes)
-	err = c.repository.Manifests().PushReference(c.context, desc, bytes.NewReader(manifestBytes), key)
 	if err != nil {
 		return err
 	}
@@ -132,19 +111,4 @@ func (c OrasCache) Restore(key string, writer io.Writer) error {
 	}
 
 	return nil
-}
-
-func createPackManifestOptions(
-	options CacheOptions, fileDescriptor v1.Descriptor) oras.PackManifestOptions {
-	annotations := make(map[string]string)
-	if len(options.Annotations) > 0 {
-		for key, value := range options.Annotations {
-			annotations[key] = value
-		}
-	}
-
-	return oras.PackManifestOptions{
-		Layers:              []v1.Descriptor{fileDescriptor},
-		ManifestAnnotations: annotations,
-	}
 }

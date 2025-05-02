@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func CreateHandler(cache Cache) http.Handler {
+func CreateHandler(cache OrasCache) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			if r.Method == "GET" || r.Method == "HEAD" {
@@ -30,10 +30,7 @@ func CreateHandler(cache Cache) http.Handler {
 			// We intentionally ignore any error returned, as the
 			// cache response should not return an error and just
 			// silently fail.
-			cache.Store(
-				key, r.Body, CacheOptions{
-					ArtifactType: "application/vnd.bazel.cache.http",
-				})
+			cache.Store(key, r.Body)
 			defer r.Body.Close()
 			w.WriteHeader(http.StatusNoContent)
 		} else if r.Method == "GET" || r.Method == "HEAD" {

@@ -17,9 +17,7 @@ func TestStore(t *testing.T) {
 	cacheInstance := NewOras(t.Context(), setupInMemoryRepository(t))
 	key := "test-key"
 	expected := "my test value"
-	err := cacheInstance.Store(key, strings.NewReader(expected), CacheOptions{
-		ArtifactType: "application/vnd.bazel.cache.http",
-	})
+	err := cacheInstance.Store(key, strings.NewReader(expected))
 	if err != nil {
 		t.Fatalf("failed to store artifact in cache: %s", err.Error())
 	}
@@ -29,9 +27,7 @@ func TestRestore(t *testing.T) {
 	cacheInstance := NewOras(t.Context(), setupInMemoryRepository(t))
 	key := "test-key"
 	expected := "my test value"
-	err := cacheInstance.Store(key, strings.NewReader(expected), CacheOptions{
-		ArtifactType: "application/vnd.bazel.cache.http",
-	})
+	err := cacheInstance.Store(key, strings.NewReader(expected))
 	if err != nil {
 		t.Fatalf("failed to store artifact in cache: %s", err.Error())
 	}

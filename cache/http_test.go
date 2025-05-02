@@ -83,7 +83,7 @@ func TestRootPost(t *testing.T) {
 	}
 }
 
-func createCacheServer(t *testing.T) (*httptest.Server, Cache) {
+func createCacheServer(t *testing.T) (*httptest.Server, OrasCache) {
 	cacheInstance := NewOras(t.Context(), setupInMemoryRepository(t))
 	server := httptest.NewServer(CreateHandler(cacheInstance))
 	t.Cleanup(server.Close)
