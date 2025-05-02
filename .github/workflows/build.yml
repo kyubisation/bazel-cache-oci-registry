@@ -27,21 +27,27 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $ --password-stdin
-          docker build --tag ${{ env.imageName }} .
+          docker buildx build --tag ${{ env.imageName }} .
           docker push ${{ env.imageName }}
-        env:
-          DOCKER_BUILDKIT: 1
+
+      - name: Assert cache repo
+        run: |
+          echo "FROM scratch" > Dockerfile.tmp
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $ --password-stdin
+          docker buildx build --file Dockerfile.tmp --tag ${{ env.imageName }}/bazel-cache .
+          docker push ${{ env.imageName }}/bazel-cache
 
   test:
     runs-on: ubuntu-latest
     permissions:
       packages: write
+    needs: build
     services:
       cache:
         image: ghcr.io/${{ github.repository }}
         env:
           registry: ghcr.io
-          repository: bazel-cache
+          repository: kyubisation/bazel-cache-oci-registry/bazel-cache
           token: ${{ secrets.GITHUB_TOKEN }}
         ports:
           - 8080:8080
@@ -49,8 +55,8 @@ jobs:
       - run: |
           echo "test" > test.txt
           curl -X PUT --upload-file test.txt http://localhost:8080/cas/15e2b0d3c33891ebb0f1ef609ec419420c20e320ce94c65fbc8c3312448eb225
-
+          echo "------------------"
           curl --output test-result.txt http://localhost:8080/cas/15e2b0d3c33891ebb0f1ef609ec419420c20e320ce94c65fbc8c3312448eb225
+          echo "------------------"
           cat test-result.txt
-
-
+          echo "------------------"
