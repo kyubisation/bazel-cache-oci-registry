@@ -82,7 +82,7 @@ func serve(cmd *cobra.Command, args []string) error {
 	}
 
 	server := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":31385",
 		Handler: cache.CreateHandler(cache.NewOras(ctx, repo)),
 	}
 	return server.ListenAndServe()
